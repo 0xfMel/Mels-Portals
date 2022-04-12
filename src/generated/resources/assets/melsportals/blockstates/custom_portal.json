@@ -1,0 +1,100 @@
+{
+  "variants": {
+    "axis=x,color=white": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=white": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=orange": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=orange": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=magenta": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=magenta": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=light_blue": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=light_blue": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=yellow": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=yellow": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=lime": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=lime": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=pink": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=pink": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=gray": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=gray": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=light_gray": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=light_gray": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=cyan": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=cyan": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=purple": {
+      "model": "minecraft:block/nether_portal_ns"
+    },
+    "axis=z,color=purple": {
+      "model": "minecraft:block/nether_portal_ew"
+    },
+    "axis=x,color=blue": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=blue": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=brown": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=brown": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=green": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=green": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=red": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=red": {
+      "model": "melsportals:block/custom_portal_ew"
+    },
+    "axis=x,color=black": {
+      "model": "melsportals:block/custom_portal_ns"
+    },
+    "axis=z,color=black": {
+      "model": "melsportals:block/custom_portal_ew"
+    }
+  }
+}

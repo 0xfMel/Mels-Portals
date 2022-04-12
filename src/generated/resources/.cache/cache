@@ -1,0 +1,5 @@
+982adaa8ce8996a81aa395af9f63ccd563d3aace assets/melsportals/blockstates/custom_portal.json
+8ebea0b378135e89001f9c4149282aa75dd746e5 assets/melsportals/models/block/custom_portal_ew.json
+8907a116a1ca1796f8762a7e70ac44297349c098 assets/melsportals/models/block/custom_portal_ns.json
+03cab4f7ce5fda8b5562817199a93f3727cae396 data/minecraft/tags/blocks/hoglin_repellents.json
+03cab4f7ce5fda8b5562817199a93f3727cae396 data/minecraft/tags/blocks/portals.json
