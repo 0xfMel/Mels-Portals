@@ -13,6 +13,7 @@ import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
 
 @EventBusSubscriber(bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientRegistryHandler {
+    @SuppressWarnings("resource")
     @SubscribeEvent
     public static void onParticlesRegistry(ParticleFactoryRegisterEvent e) {
         Minecraft.getInstance().particleEngine.register(ModParticles.COLORED_PORTAL,

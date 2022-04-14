@@ -4,8 +4,8 @@ import java.util.Optional;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 
-import ftm._0xfmel.melsportals.capabilities.customteleport.CustomTeleportCapability;
-import ftm._0xfmel.melsportals.capabilities.customteleport.ICustomTeleport;
+import ftm._0xfmel.melsportals.capabilities.CustomPortalPositionCapability;
+import ftm._0xfmel.melsportals.capabilities.ICustomPortalPosition;
 import ftm._0xfmel.melsportals.gameobjects.blocks.CustomPortalBlock;
 import ftm._0xfmel.melsportals.gameobjects.blocks.ModBlocks;
 import net.minecraft.block.BlockState;
@@ -25,6 +25,7 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(value = Dist.CLIENT)
 public class RenderGameOverlayHandler {
+    @SuppressWarnings("deprecation")
     @SubscribeEvent
     public static void onRenderGamePortalOverlayPre(RenderGameOverlayEvent.Pre e) {
         if (e.getType() != RenderGameOverlayEvent.ElementType.PORTAL)
@@ -35,12 +36,12 @@ public class RenderGameOverlayHandler {
                 + (mc.player.portalTime - mc.player.oPortalTime) * e.getPartialTicks();
 
         if (timeInPortal > 0.0F) {
-            Optional<ICustomTeleport> lastPortalPosition = mc.player
-                    .getCapability(CustomTeleportCapability.CUSTOM_TELEPORT_CAPABILITY, null).resolve();
+            Optional<ICustomPortalPosition> customPortalPosition = mc.player
+                    .getCapability(CustomPortalPositionCapability.CUSTOM_PORTAL_POSITION_CAPABILITY, null).resolve();
 
-            if (lastPortalPosition.isPresent()) {
+            if (customPortalPosition.isPresent()) {
 
-                BlockPos pos = lastPortalPosition.get().getPortalEntrancePos();
+                BlockPos pos = customPortalPosition.get().getPortalPos();
                 if (pos != null) {
                     BlockState blockState = mc.level.getBlockState(pos);
                     if (!(blockState.getBlock() == ModBlocks.CUSTOM_PORTAL)

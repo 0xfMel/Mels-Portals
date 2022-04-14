@@ -1,17 +1,19 @@
 package ftm._0xfmel.melsportals.world;
 
+import java.lang.reflect.Field;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.function.Function;
 
-import ftm._0xfmel.melsportals.capabilities.customteleport.CustomTeleportCapability;
-import ftm._0xfmel.melsportals.capabilities.customteleport.ICustomTeleport;
 import ftm._0xfmel.melsportals.utils.Logging;
 import ftm._0xfmel.melsportals.world.poi.ModPointOfInterestTypes;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.NetherPortalBlock;
 import net.minecraft.block.PortalInfo;
 import net.minecraft.block.PortalSize;
+import net.minecraft.crash.CrashReport;
+import net.minecraft.crash.CrashReportCategory;
+import net.minecraft.crash.ReportedException;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.state.properties.BlockStateProperties;
@@ -30,8 +32,16 @@ import net.minecraft.world.World;
 import net.minecraft.world.border.WorldBorder;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraft.world.server.TicketType;
+import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 
 public class CustomTeleporter extends Teleporter {
+    private static final Field PORTAL_ENTRANCE_POS_FIELD = ObfuscationReflectionHelper.findField(Entity.class,
+            "field_242271_ac");
+
+    static {
+        PORTAL_ENTRANCE_POS_FIELD.setAccessible(true);
+    }
+
     public CustomTeleporter(ServerWorld level) {
         super(level);
     }
@@ -50,45 +60,55 @@ public class CustomTeleporter extends Teleporter {
         BlockPos blockpos1 = new BlockPos(MathHelper.clamp(entity.getX() * d4, d0, d2), entity.getY(),
                 MathHelper.clamp(entity.getZ() * d4, d1, d3));
 
-        Optional<ICustomTeleport> customTeleport = entity
-                .getCapability(CustomTeleportCapability.CUSTOM_TELEPORT_CAPABILITY, null).resolve();
-
-        if (!customTeleport.isPresent() || customTeleport.get().getPortalEntrancePos() == null)
-            return null;
-
-        Optional<TeleportationRepositioner.Result> optional = this.findPortalAround(blockpos1, flag2);
-
-        Direction.Axis direction$axis = this.level.getBlockState(customTeleport.get().getPortalEntrancePos())
-                .getOptionalValue(NetherPortalBlock.AXIS).orElse(Direction.Axis.X);
-
-        if (!optional.isPresent() && entity instanceof ServerPlayerEntity) {
-            optional = destWorld.getPortalForcer().createPortal(blockpos1, direction$axis);
-            if (!optional.isPresent()) {
-                Logging.LOGGER.error("Unable to create a portal, likely target out of worldborder");
-            }
+        BlockPos portalEntrancePos;
+        try {
+            portalEntrancePos = (BlockPos) PORTAL_ENTRANCE_POS_FIELD.get(entity);
+        } catch (Throwable throwable) {
+            CrashReport crashreport = CrashReport.forThrowable(throwable, "Getting portalEntrancePos for entity");
+            CrashReportCategory entityCategory = crashreport.addCategory("Entity being teleported");
+            entityCategory.setDetail("Entity", entity);
+            throw new ReportedException(crashreport);
         }
 
-        return optional.map((p_242275_2_) -> {
-            BlockState blockstate = entity.level.getBlockState(customTeleport.get().getPortalEntrancePos());
+        if (portalEntrancePos == null)
+            return null;
+
+        Optional<TeleportationRepositioner.Result> optional1 = this.findPortalAround(blockpos1, flag2);
+
+        Optional<TeleportationRepositioner.Result> optional;
+        if (!optional1.isPresent() && entity instanceof ServerPlayerEntity) {
+            Direction.Axis direction$axis1 = entity.level.getBlockState(portalEntrancePos)
+                    .getOptionalValue(NetherPortalBlock.AXIS).orElse(Direction.Axis.X);
+            Optional<TeleportationRepositioner.Result> optional2 = destWorld.getPortalForcer().createPortal(blockpos1,
+                    direction$axis1);
+            if (!optional2.isPresent()) {
+                Logging.LOGGER.error("Unable to create a portal, likely target out of worldborder");
+            }
+
+            optional = optional2;
+        } else {
+            optional = optional1;
+        }
+
+        return optional.map((result) -> {
+            BlockState blockstate = entity.level.getBlockState(portalEntrancePos);
+            Direction.Axis direction$axis;
             Vector3d vector3d;
             if (blockstate.hasProperty(BlockStateProperties.HORIZONTAL_AXIS)) {
+                direction$axis = blockstate.getValue(BlockStateProperties.HORIZONTAL_AXIS);
                 TeleportationRepositioner.Result teleportationrepositioner$result = TeleportationRepositioner
-                        .getLargestRectangleAround(
-                                customTeleport.get().getPortalEntrancePos(),
-                                direction$axis,
-                                21,
-                                Direction.Axis.Y,
-                                21, (p_242276_2_) -> {
+                        .getLargestRectangleAround(portalEntrancePos, direction$axis, 21, Direction.Axis.Y, 21,
+                                (p_242276_2_) -> {
                                     return entity.level.getBlockState(p_242276_2_) == blockstate;
                                 });
                 vector3d = this.getRelativePortalPosition(entity, direction$axis, teleportationrepositioner$result);
             } else {
+                direction$axis = Direction.Axis.X;
                 vector3d = new Vector3d(0.5D, 0.0D, 0.0D);
             }
 
-            return PortalSize.createPortalInfo(destWorld, p_242275_2_, direction$axis, vector3d,
-                    entity.getDimensions(entity.getPose()), entity.getDeltaMovement(), entity.yRot,
-                    entity.xRot);
+            return PortalSize.createPortalInfo(destWorld, result, direction$axis, vector3d,
+                    entity.getDimensions(entity.getPose()), entity.getDeltaMovement(), entity.yRot, entity.xRot);
         }).orElse((PortalInfo) null);
     }
 

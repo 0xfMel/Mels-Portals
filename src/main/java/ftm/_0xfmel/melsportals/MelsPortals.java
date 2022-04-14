@@ -3,6 +3,7 @@ package ftm._0xfmel.melsportals;
 import ftm._0xfmel.melsportals.capabilities.Capabilities;
 import ftm._0xfmel.melsportals.client.BlockRenderTypes;
 import ftm._0xfmel.melsportals.globals.ModGlobals;
+import ftm._0xfmel.melsportals.handlers.ModPacketHander;
 import ftm._0xfmel.melsportals.utils.Logging;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
@@ -24,11 +25,12 @@ public class MelsPortals {
 
     private void setup(final FMLCommonSetupEvent e) {
         Logging.LOGGER.info("Setting up...");
-        Capabilities.registerCommonCapabilities();
+        ModPacketHander.registerToClientNetworkPackets();
     }
 
     private void clientSetup(final FMLClientSetupEvent e) {
         Logging.LOGGER.info("Setting up client...");
         BlockRenderTypes.setBlockRenderTypes();
+        Capabilities.registerClientCapabilities();
     }
 }

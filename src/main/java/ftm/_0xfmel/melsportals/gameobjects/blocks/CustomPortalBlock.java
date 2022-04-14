@@ -11,14 +11,16 @@ import java.util.Stack;
 
 import com.google.common.cache.LoadingCache;
 
-import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.util.TriConsumer;
 
-import ftm._0xfmel.melsportals.capabilities.customteleport.CustomTeleportCapability;
-import ftm._0xfmel.melsportals.capabilities.customteleport.ICustomTeleport;
+import ftm._0xfmel.melsportals.capabilities.CustomPortalPositionCapability;
+import ftm._0xfmel.melsportals.capabilities.ICustomPortalPosition;
 import ftm._0xfmel.melsportals.client.particles.ColoredPortalParticleData;
 import ftm._0xfmel.melsportals.globals.ModGlobals;
+import ftm._0xfmel.melsportals.handlers.ModPacketHander;
+import ftm._0xfmel.melsportals.network.PortalBreakMessage;
 import ftm._0xfmel.melsportals.utils.ExposedPatternHelper;
-import ftm._0xfmel.melsportals.utils.ParticleUtil;
+import ftm._0xfmel.melsportals.utils.Utils;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -28,7 +30,10 @@ import net.minecraft.block.PortalSize;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.pattern.BlockPattern;
+import net.minecraft.client.entity.player.ClientPlayerEntity;
 import net.minecraft.client.renderer.color.IBlockColor;
+import net.minecraft.crash.CrashReport;
+import net.minecraft.crash.ReportedException;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.DyeColor;
@@ -43,13 +48,17 @@ import net.minecraft.util.Direction;
 import net.minecraft.util.Hand;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.SoundEvents;
+import net.minecraft.util.Tuple;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.BlockRayTraceResult;
 import net.minecraft.world.IBlockDisplayReader;
 import net.minecraft.world.IWorld;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.IChunk;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.event.ForgeEventFactory;
+import net.minecraftforge.fml.network.PacketDistributor;
 import net.minecraftforge.api.distmarker.Dist;
 
 public class CustomPortalBlock extends NetherPortalBlock {
@@ -80,13 +89,16 @@ public class CustomPortalBlock extends NetherPortalBlock {
         if (!entityIn.isPassenger() && !entityIn.isVehicle() && entityIn.canChangeDimensions()) {
             entityIn.handleInsidePortal(pos);
 
-            Optional<ICustomTeleport> customTeleport = entityIn
-                    .getCapability(CustomTeleportCapability.CUSTOM_TELEPORT_CAPABILITY, null).resolve();
+            if (entityIn instanceof ClientPlayerEntity) {
+                Optional<ICustomPortalPosition> customPortalPosition = entityIn
+                        .getCapability(CustomPortalPositionCapability.CUSTOM_PORTAL_POSITION_CAPABILITY, null)
+                        .resolve();
 
-            if (customTeleport.isPresent()
-                    && (customTeleport.get().getPortalEntrancePos() == null
-                            || !customTeleport.get().getPortalEntrancePos().equals(pos))) {
-                customTeleport.get().setPortalEntrancePos(pos.immutable());
+                if (customPortalPosition.isPresent()
+                        && (customPortalPosition.get().getPortalPos() == null
+                                || !customPortalPosition.get().getPortalPos().equals(pos))) {
+                    customPortalPosition.get().setPortalPos((pos.immutable()));
+                }
             }
         }
     }
@@ -121,16 +133,29 @@ public class CustomPortalBlock extends NetherPortalBlock {
     }
 
     @Override
-    public BlockState updateShape(BlockState pState, Direction pFacing, BlockState pFacingState, IWorld pLevel,
-            BlockPos pCurrentPos, BlockPos pFacingPos) {
-        Direction.Axis direction$axis = pFacing.getAxis();
+    public void neighborChanged(BlockState pState, World pLevel, BlockPos pPos, Block pBlock, BlockPos pFromPos,
+            boolean pIsMoving) {
+        Direction.Axis direction$axis = Utils.relativeTo(pFromPos, pPos).getAxis();
         Direction.Axis direction$axis1 = pState.getValue(AXIS);
         boolean flag = direction$axis1 != direction$axis && direction$axis.isHorizontal();
-        AnyShape anyShape = new AnyShape(pLevel, pCurrentPos, direction$axis1);
-        return !flag && !pFacingState.is(this)
-                && !(anyShape.isValid && anyShape.portalBlocks.size() == anyShape.portalBlockCount)
-                        ? Blocks.AIR.defaultBlockState()
-                        : pState;
+        AnyShape anyShape = new AnyShape(pLevel, pPos, direction$axis1);
+        BlockState pFacingState = pLevel.getBlockState(pFromPos);
+
+        if (!flag && !pFacingState.is(this)
+                && !(anyShape.isValid && anyShape.portalBlocks.size() == anyShape.portalBlockCount)) {
+            try {
+                anyShape.breakPortalBlocks(pState.getValue(COLOR));
+            } catch (Throwable throwable) {
+                CrashReport crashreport = CrashReport.forThrowable(throwable, "Breaking custom portal");
+                throw new ReportedException(crashreport);
+            }
+        }
+    }
+
+    @Override
+    public BlockState updateShape(BlockState pState, Direction pFacing, BlockState pFacingState, IWorld pLevel,
+            BlockPos pCurrentPos, BlockPos pFacingPos) {
+        return pState;
     }
 
     @Override
@@ -169,11 +194,7 @@ public class CustomPortalBlock extends NetherPortalBlock {
                 float green = (float) ((color & 0x0000FF00) >> 8) / 255;
                 float blue = (float) (color & 0x000000FF) / 255;
 
-                ParticleUtil.spawnParticle(
-                        new ColoredPortalParticleData(red, green, blue),
-                        worldIn, false, false,
-                        d0, d1, d2, d3, d4, d5);
-
+                worldIn.addParticle(new ColoredPortalParticleData(red, green, blue), d0, d1, d2, d3, d4, d5);
             }
         }
     }
@@ -286,9 +307,10 @@ public class CustomPortalBlock extends NetherPortalBlock {
         private boolean isValid = false;
         private final BlockPos startPos;
         private int portalBlockCount = 0;
-        private boolean hasCustomFrame = false;
+        private final TriConsumer<BlockPos.Mutable, Integer, Integer> setBlockPos;
+        private final List<Point> currentPortalBlocks;
 
-        private enum EnumTravelDirection {
+        private enum TravelDirection {
             NEITHER,
             LEFT,
             RIGHT
@@ -299,24 +321,29 @@ public class CustomPortalBlock extends NetherPortalBlock {
             this.world = worldIn;
             this.axis = axis;
             this.portalBlocks = new ArrayList<Point>();
+            this.currentPortalBlocks = new ArrayList<Point>();
 
             Direction leftDir;
             if (axis == Direction.Axis.X) {
                 leftDir = Direction.EAST;
                 rightDir = Direction.WEST;
+
+                this.setBlockPos = (pos, v, y) -> pos.set(v, y, pos.getZ());
             } else {
                 leftDir = Direction.NORTH;
                 rightDir = Direction.SOUTH;
+
+                this.setBlockPos = (pos, v, y) -> pos.set(pos.getX(), y, v);
             }
 
             List<Point> visited = new ArrayList<Point>();
-            Queue<Pair<Point, EnumTravelDirection>> toVisit = new LinkedList<Pair<Point, EnumTravelDirection>>();
+            Queue<Tuple<Point, TravelDirection>> toVisit = new LinkedList<Tuple<Point, TravelDirection>>();
 
             Stack<Point> upStack = new Stack<Point>();
             Stack<Point> leftStack = new Stack<Point>();
             Stack<Point> rightStack = new Stack<Point>();
 
-            BlockPos.Mutable pos = new BlockPos.Mutable().set(startPos);
+            BlockPos.Mutable pos = startPos.mutable();
 
             for (int y = startPos.getY(); y >= 0; y = pos.move(Direction.DOWN).getY()) {
                 BlockState blockState = worldIn.getBlockState(pos);
@@ -325,6 +352,7 @@ public class CustomPortalBlock extends NetherPortalBlock {
                 if (this.isEmptyBlock(blockState)) {
                     if (AnyShape.isPortal(blockState)) {
                         this.portalBlockCount++;
+                        this.currentPortalBlocks.add(current);
                     }
                     this.portalBlocks.add(current);
                     upStack.push(current);
@@ -344,13 +372,14 @@ public class CustomPortalBlock extends NetherPortalBlock {
                 if (this.isEmptyBlock(blockState)) {
                     if (AnyShape.isPortal(blockState)) {
                         this.portalBlockCount++;
+                        this.currentPortalBlocks.add(current);
                     }
                     this.portalBlocks.add(current);
                     upStack.push(current);
                 } else {
                     if (this.isFrameBlock(blockState)) {
-                        toVisit.add(Pair.of(AnyShape.getPoint(pos.move(Direction.DOWN), this.axis),
-                                EnumTravelDirection.NEITHER));
+                        toVisit.add(new Tuple<>(AnyShape.getPoint(pos.move(Direction.DOWN), this.axis),
+                                TravelDirection.NEITHER));
                         upStack.pop();
                         break;
                     } else {
@@ -366,9 +395,9 @@ public class CustomPortalBlock extends NetherPortalBlock {
             Direction[] rightFacings = new Direction[] { Direction.UP, rightDir, Direction.DOWN, leftDir };
 
             visitLoop: while (toVisit.size() > 0) {
-                Pair<Point, EnumTravelDirection> currentPair = toVisit.remove();
-                Point current = currentPair.getKey();
-                EnumTravelDirection currentGoing = currentPair.getValue();
+                Tuple<Point, TravelDirection> currentPair = toVisit.remove();
+                Point current = currentPair.getA();
+                TravelDirection currentGoing = currentPair.getB();
                 Stack<Point> goingStack;
                 switch (currentGoing) {
                     case LEFT:
@@ -383,14 +412,14 @@ public class CustomPortalBlock extends NetherPortalBlock {
                     default:
                         throw new IllegalStateException("Unexpected value: " + currentGoing);
                 }
-                AnyShape.changePos(pos, current.x, current.y, axis);
+                this.setBlockPos.accept(pos, current.x, current.y);
 
                 boolean i = false;
                 do {
-                    EnumTravelDirection going = (currentGoing == EnumTravelDirection.NEITHER && i)
-                            || currentGoing == EnumTravelDirection.RIGHT ? EnumTravelDirection.RIGHT
-                                    : EnumTravelDirection.LEFT;
-                    Direction[] facings = going == EnumTravelDirection.LEFT ? leftFacings : rightFacings;
+                    TravelDirection going = (currentGoing == TravelDirection.NEITHER && i)
+                            || currentGoing == TravelDirection.RIGHT ? TravelDirection.RIGHT
+                                    : TravelDirection.LEFT;
+                    Direction[] facings = going == TravelDirection.LEFT ? leftFacings : rightFacings;
                     boolean addedToVisit = false;
                     for (Direction facing : facings) {
                         BlockPos offsetPos = pos.relative(facing);
@@ -405,9 +434,10 @@ public class CustomPortalBlock extends NetherPortalBlock {
                             if (this.isEmptyBlock(offsetState) && offsetPoint.y < 256) {
                                 if (AnyShape.isPortal(offsetState)) {
                                     this.portalBlockCount++;
+                                    this.currentPortalBlocks.add(offsetPoint);
                                 }
                                 this.portalBlocks.add(offsetPoint);
-                                toVisit.add(Pair.of(offsetPoint, going));
+                                toVisit.add(new Tuple<>(offsetPoint, going));
                                 visited.add(offsetPoint);
                                 addedToVisit = true;
                                 break;
@@ -418,18 +448,72 @@ public class CustomPortalBlock extends NetherPortalBlock {
                     }
                     if (!addedToVisit) {
                         if (!goingStack.empty()) {
-                            toVisit.add(Pair.of(goingStack.pop(), currentGoing));
+                            toVisit.add(new Tuple<>(goingStack.pop(), currentGoing));
                         } else if (!upStack.isEmpty()) {
-                            toVisit.add(Pair.of(upStack.pop(), currentGoing));
+                            toVisit.add(new Tuple<>(upStack.pop(), currentGoing));
                         }
                         continue visitLoop;
                     }
-                } while ((i = !i) && currentGoing == EnumTravelDirection.NEITHER);
+                } while ((i = !i) && currentGoing == TravelDirection.NEITHER);
 
                 goingStack.push(current);
             }
 
             isValid = true;
+        }
+
+        private void completePortalList() throws Exception {
+            BlockPos.Mutable pos = this.startPos.mutable();
+            Point startFrom = null;
+            if (this.portalBlocks.size() > 0) {
+                startFrom = this.portalBlocks.get(0);
+            } else {
+                Direction[] startFromDirs = new Direction[] { rightDir.getOpposite(), Direction.UP, rightDir };
+                for (Direction dir : startFromDirs) {
+                    BlockState blockState = this.world.getBlockState(pos.move(dir));
+                    if (AnyShape.isPortal(blockState)) {
+                        startFrom = AnyShape.getPoint(pos, this.axis);
+                    }
+                }
+            }
+
+            if (startFrom == null)
+                throw new Exception("No portal");
+
+            this.portalBlockCount = 1;
+            this.portalBlocks.clear();
+            this.portalBlocks.add(startFrom);
+            this.currentPortalBlocks.clear();
+            this.currentPortalBlocks.add(startFrom);
+
+            List<Point> visited = new ArrayList<Point>();
+            Queue<Point> toVisit = new LinkedList<Point>();
+            toVisit.add(startFrom);
+            visited.add(startFrom);
+
+            Direction[] searchDirs = new Direction[] { Direction.UP, rightDir.getOpposite(), Direction.DOWN, rightDir };
+
+            while (toVisit.size() > 0) {
+                Point currentPoint = toVisit.remove();
+                this.setBlockPos.accept(pos, currentPoint.x, currentPoint.y);
+
+                for (Direction searchDir : searchDirs) {
+                    BlockPos searchPos = pos.relative(searchDir);
+                    Point searchPoint = AnyShape.getPoint(searchPos, this.axis);
+
+                    if (!visited.contains(searchPoint)) {
+                        visited.add(searchPoint);
+                        BlockState state = this.world.getBlockState(searchPos);
+
+                        if (AnyShape.isPortal(state)) {
+                            toVisit.add(searchPoint);
+                            this.portalBlockCount++;
+                            this.portalBlocks.add(searchPoint);
+                            this.currentPortalBlocks.add(searchPoint);
+                        }
+                    }
+                }
+            }
         }
 
         private static int getHorizontalCoord(BlockPos pos, Direction.Axis axis) {
@@ -441,14 +525,6 @@ public class CustomPortalBlock extends NetherPortalBlock {
 
         private static Point getPoint(BlockPos pos, Direction.Axis axis) {
             return new Point(AnyShape.getHorizontalCoord(pos, axis), pos.getY());
-        }
-
-        private static void changePos(BlockPos.Mutable pos, int h, int y, Direction.Axis axis) {
-            if (axis == Direction.Axis.X) {
-                pos.set(h, y, pos.getZ());
-            } else {
-                pos.set(pos.getX(), y, h);
-            }
         }
 
         private boolean isBlockChunkLoaded(BlockPos pos) {
@@ -492,8 +568,8 @@ public class CustomPortalBlock extends NetherPortalBlock {
                 }
             }
 
-            BlockPos.Mutable pos = new BlockPos.Mutable().set(this.startPos);
-            AnyShape.changePos(pos, this.axis == Direction.Axis.X ? maxX : minX, minY, this.axis);
+            BlockPos.Mutable pos = this.startPos.mutable();
+            this.setBlockPos.accept(pos, this.axis == Direction.Axis.X ? maxX : minX, minY);
             return pos;
         }
 
@@ -541,7 +617,7 @@ public class CustomPortalBlock extends NetherPortalBlock {
         }
 
         public boolean isValidVanilla() {
-            if (!this.isValid || this.hasCustomFrame)
+            if (!this.isValid)
                 return false;
 
             Integer maxX = null;
@@ -583,9 +659,9 @@ public class CustomPortalBlock extends NetherPortalBlock {
         }
 
         private void placePortalBlocks(BlockState placeBlockState) {
-            BlockPos.Mutable pos = new BlockPos.Mutable().set(this.startPos);
+            BlockPos.Mutable pos = this.startPos.mutable();
             for (Point point : this.portalBlocks) {
-                AnyShape.changePos(pos, point.x, point.y, this.axis);
+                this.setBlockPos.accept(pos, point.x, point.y);
                 this.world.setBlock(pos, placeBlockState, 18);
             }
         }
@@ -602,6 +678,27 @@ public class CustomPortalBlock extends NetherPortalBlock {
                 this.placePortalBlocks(
                         ModBlocks.CUSTOM_PORTAL.defaultBlockState().setValue(NetherPortalBlock.AXIS, this.axis)
                                 .setValue(COLOR, color));
+            }
+        }
+
+        public void breakPortalBlocks(DyeColor color) throws Exception {
+            if (!this.isValid && this.portalBlockCount > 0) {
+                this.completePortalList();
+            }
+
+            IChunk chunkIn = this.world.getChunk(this.startPos);
+            if (chunkIn instanceof Chunk) {
+                ModPacketHander.INSTANCE.send(
+                        PacketDistributor.TRACKING_CHUNK.with(() -> (Chunk) chunkIn),
+                        new PortalBreakMessage(
+                                this.axis, color,
+                                this.currentPortalBlocks,
+                                this.axis == Direction.Axis.X ? this.startPos.getZ() : this.startPos.getX()));
+            }
+            BlockPos.Mutable pos = this.startPos.mutable();
+            for (Point point : this.portalBlocks) {
+                this.setBlockPos.accept(pos, point.x, point.y);
+                this.world.setBlock(pos, Blocks.AIR.defaultBlockState(), 18);
             }
         }
     }
