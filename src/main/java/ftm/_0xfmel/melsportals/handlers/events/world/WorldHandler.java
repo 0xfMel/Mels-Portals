@@ -17,7 +17,7 @@ import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 @Mod.EventBusSubscriber
 public class WorldHandler {
     private static final Field PORTAL_FORCER_FIELD = ObfuscationReflectionHelper.findField(ServerWorld.class,
-            "field_85177_Q");
+            "field_85177_Q"); // ServerWorld.portalForcer
 
     static {
         PORTAL_FORCER_FIELD.setAccessible(true);

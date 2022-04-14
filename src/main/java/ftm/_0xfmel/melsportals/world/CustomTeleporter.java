@@ -36,7 +36,7 @@ import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 
 public class CustomTeleporter extends Teleporter {
     private static final Field PORTAL_ENTRANCE_POS_FIELD = ObfuscationReflectionHelper.findField(Entity.class,
-            "field_242271_ac");
+            "field_242271_ac"); // Entity.portalEntrancePos
 
     static {
         PORTAL_ENTRANCE_POS_FIELD.setAccessible(true);

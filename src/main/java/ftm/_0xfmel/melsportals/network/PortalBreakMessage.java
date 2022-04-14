@@ -39,6 +39,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.shapes.VoxelShape;
 import net.minecraft.util.math.vector.Vector3d;
+import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 import net.minecraftforge.fml.network.NetworkEvent;
 
 public class PortalBreakMessage {
@@ -56,6 +57,13 @@ public class PortalBreakMessage {
     private static final int V1_OFFSET = PACKED_Y1_LENGTH + PACKED_Y2_LENGTH + PACKED_V_LENGTH;
 
     private static final int Y22_MASK = 0xf;
+
+    private static final Field PARTICLES_FIELD = ObfuscationReflectionHelper.findField(ParticleManager.class,
+            "field_78876_b"); // ParticleManager.particles
+
+    static {
+        PARTICLES_FIELD.setAccessible(true);
+    }
 
     private final Direction.Axis axis;
     private final DyeColor color;
@@ -176,11 +184,7 @@ public class PortalBreakMessage {
             Map<IParticleRenderType, EvictingQueue<Particle>> particles;
 
             try {
-                Field f = ParticleManager.class.getDeclaredField("particles");
-
-                f.setAccessible(true);
-                particles = (Map<IParticleRenderType, EvictingQueue<Particle>>) f
-                        .get(mc.particleEngine);
+                particles = (Map<IParticleRenderType, EvictingQueue<Particle>>) PARTICLES_FIELD.get(mc.particleEngine);
             } catch (Throwable throwable) {
                 CrashReport crashreport = CrashReport.forThrowable(throwable, "Getting particles map");
                 throw new ReportedException(crashreport);
