@@ -89,15 +89,17 @@ public class CustomPortalBlock extends NetherPortalBlock {
         if (!entityIn.isPassenger() && !entityIn.isVehicle() && entityIn.canChangeDimensions()) {
             entityIn.handleInsidePortal(pos);
 
-            if (entityIn instanceof ClientPlayerEntity) {
-                Optional<ICustomPortalPosition> customPortalPosition = entityIn
-                        .getCapability(CustomPortalPositionCapability.CUSTOM_PORTAL_POSITION_CAPABILITY, null)
-                        .resolve();
+            if (worldIn.isClientSide) {
+                if (entityIn instanceof ClientPlayerEntity) {
+                    Optional<ICustomPortalPosition> customPortalPosition = entityIn
+                            .getCapability(CustomPortalPositionCapability.CUSTOM_PORTAL_POSITION_CAPABILITY, null)
+                            .resolve();
 
-                if (customPortalPosition.isPresent()
-                        && (customPortalPosition.get().getPortalPos() == null
-                                || !customPortalPosition.get().getPortalPos().equals(pos))) {
-                    customPortalPosition.get().setPortalPos((pos.immutable()));
+                    if (customPortalPosition.isPresent()
+                            && (customPortalPosition.get().getPortalPos() == null
+                                    || !customPortalPosition.get().getPortalPos().equals(pos))) {
+                        customPortalPosition.get().setPortalPos((pos.immutable()));
+                    }
                 }
             }
         }
